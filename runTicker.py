@@ -12,6 +12,23 @@ graph = []
 #	print 'Pipe location incorrect; fatal'
 #	sys.exit()
 
+def bitcoinCharacterCommand(x,y):
+	bmap = [[1,3],[0,1,2,3],[1,4],[1,2,3],[1,4],[0,1,2,3],[1,3]]
+	messages = []
+	for i in range(len(bmap)):
+		for j in bmap[i]:
+			messages.append("PS %d %d 1" % (x+j, y+i))
+	return messages
+	
+def bitcoinBig(x,y):
+	bmapTop = [[2,3,5,6],[2,3,5,6],[0,1,2,3,4,5,6,7],[0,1,2,3,4,5,6,7,8],[2,3,7,8],[2,3,7,8],[2,3,4,5,6,7,8]]
+	bmap = bmapTop + [[2,3,4,5,6,7]] + bmapTop[::-1]
+	messages = []
+	for i in range(len(bmap)):
+		for j in bmap[i]:
+			messages.append("PS %d %d 1" % (x+j, y+i))
+	return messages
+
 def loadGraph():
 	global graph
 	if os.path.exists(graphFile):
@@ -29,19 +46,20 @@ def saveGraph():
 		
 def printTime():
 	timestring = datetime.datetime.fromtimestamp(time.time()).strftime("%Y-%m-%d %I:%M")
-	t = 'TO 4 35 1 0 "%s"' % timestring
+	t = 'TO 0 35 1 0 "%s"' % timestring
 	return [t]
 		
-def drawGraph(timeMul):
+def drawGraph(timeMul=1):
 	# timeMul is how many items to average over each time.
 	# timeMul = 3 would mean each step 
+	# graphWidth steps total, normally covering 40 minutes. To cover 12 hours you'll need 0.3 hours as your time mul, or 20ish
 	global graph
 	# bounds are the right hand side, top
 	boundX = 136
-	boundY = 5
+	boundY = 3
 	height = 33
-	graphWidth = 40
-	allPrices = [a[1] for a in graph]
+	graphWidth = 55
+	allPrices = [a[1] for a in graph[:timeMul*graphWidth]]
 	minPrice = min(allPrices)
 	maxPrice = max(allPrices)
 	minmax = (minPrice, maxPrice)
@@ -57,17 +75,28 @@ def drawGraph(timeMul):
 			print r, graph
 			return None
 		
+	def average(l):
+		return 1.0*sum(l)/len(l)
+		
+	def group(size, toGroup):
+		ret = []
+		
 	currX = boundX
 	for r in range(1,graphWidth):
 		x1 = currX
 		x2 = currX+1
-		y1 = getYForGraph(r)
-		y2 = getYForGraph(r-1)
-		if None not in [y1,y2]:
-			messages += [genericMessage % (x1,int(y1),x2,int(y2),1)]
+		y1s = []
+		y2s = []
+		for i in range(timeMul):
+			y1s.append(getYForGraph(r*timeMul+i))
+			y2s.append(getYForGraph((r-1)*timeMul+i))
+		
+		if None not in (y1s+y2s):
+			messages += [genericMessage % (x1,int(average(y1s)),x2,int(average(y2s)),1)]
 		currX -= 1
-	messages += ['TO %d %d 0 2 "%5.1f"' % (boundX-1, boundY-2, max(minmax))]
-	messages += ['TO %d %d 0 2 "%5.1f"' % (boundX-1, boundY-2+height, min(minmax))]
+	messages += ['TO %d %d 0 2 "%5.1f"' % (boundX, boundY, max(minmax))]
+	messages += ['TO %d %d 0 2 "%5.1f"' % (boundX, boundY+height-5, min(minmax))]
+	messages += ['TO %d %d 0 0 "%d min"' % (boundX-graphWidth/2-4, boundY+height+2, timeMul*graphWidth)]
 	return messages
 	
 def sendCommand(com):
@@ -87,20 +116,21 @@ CURRS = ['AUD','USD']
 maxDigits = int(math.ceil(math.log(max([data['bpi'][CURR]['rate_float'] for CURR in CURRS]))/math.log(10)))
 
 toRet = []
-toRet += ['BPI-CoinDesk','']
+toRet += ['BPI','']
 for CURR in CURRS:
-	toRet += [str('%s: %'+str(maxDigits+3)+'.2f') % (CURR, data['bpi'][CURR]['rate_float'])]
-
+	toRet += [str(' :%'+str(maxDigits+3)+'.2f%s') % (data['bpi'][CURR]['rate_float'], CURR[:2])]
 
 allToSend = [
 	'MC 1',
 	'TL ' + ' '.join(['"%s"' % m for m in toRet]),
+	'TO 0 8 1 0 "By CoinDesk"'
 	]
 		
 saveGraph()
 
 allToSend += drawGraph(1)
 allToSend += printTime()
+allToSend += bitcoinBig(0,16)
 
 allToSend += ['MC 0']	
 	
