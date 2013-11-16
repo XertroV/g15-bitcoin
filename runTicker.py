@@ -2,12 +2,17 @@
 
 import json
 import httplib
-import os, math, datetime, time
+import os, math, datetime, time, sys
 
 pipeLocation = '~/g15Output'
 graphFile = './pricegraph.json'
 graphWidth = 40
 graph = []
+
+if not os.path.exists(pipeLocation):
+	print 'Pipe location incorrect; fatal'
+	sys.exit()
+
 def loadGraph():
 	global graph
 	if os.path.exists(graphFile):
