@@ -4,9 +4,13 @@ import json
 import httplib
 import os, math, datetime, time, sys
 
-pipeLocation = '~/g15Output'
+pipeLocation = ['~/g15Output']
 graphFile = './pricegraph.json'
 graph = []
+numScreens = 4
+currCode = 'AUD'
+
+
 
 #if not os.path.exists(pipeLocation):
 #	print 'Pipe location incorrect; fatal'
@@ -64,7 +68,6 @@ def drawGraph(timeMul=1):
 	maxPrice = max(allPrices)
 	minmax = (minPrice, maxPrice)
 	rangePrice = maxPrice - minPrice
-	print rangePrice
 	genericMessage = 'DL %d %d %d %d %d'
 	messages = []
 	
@@ -72,7 +75,6 @@ def drawGraph(timeMul=1):
 		try:
 			return (boundY+height) - (graph[r][1]-minPrice)/rangePrice*height
 		except IndexError:
-			print r, graph
 			return None
 		
 	def average(l):
@@ -99,11 +101,27 @@ def drawGraph(timeMul=1):
 	messages += ['TO %d %d 0 0 "%d min"' % (boundX-graphWidth/2-4, boundY+height+2, timeMul*graphWidth)]
 	return messages
 	
-def sendCommand(com):
-	print com
-	os.system('echo \'%s\' > %s' % (com,pipeLocation))
+def sendCommand(com,locIndex=0):
+	os.system('echo \'%s\' > %s' % (com,pipeLocation[locIndex]))
+	
+def sendMany(coms,locIndex=0):
+	print 'SendMany to %d' % locIndex
+	sendCommand('MC 1',locIndex)
+	for toSend in coms:
+		sendCommand(toSend,locIndex)
+	sendCommand('MC 0',locIndex)
+	
+def sendScreens(screens):
+	i = 0
+	for screen in screens:
+		sendMany(screen,i)
+		i += 1
 
-currCode = 'AUD'
+for i in range(numScreens-1):
+	p = './g15-b%d' % i
+	pipeLocation.append(p)
+	sendCommand('SN "%s"' % p)
+
 priceData = httplib.HTTPSConnection('api.coindesk.com')
 priceData.request("GET",'/v1/bpi/currentprice/%s.json' % currCode)
 r1 = priceData.getresponse()
@@ -111,29 +129,25 @@ data = json.loads(r1.read())
 
 loadGraph()
 updateGraph(data['bpi'][currCode]['rate_float'])
+saveGraph()
 
 CURRS = ['AUD','USD']
 maxDigits = int(math.ceil(math.log(max([data['bpi'][CURR]['rate_float'] for CURR in CURRS]))/math.log(10)))
 
-toRet = []
-toRet += ['BPI','']
-for CURR in CURRS:
-	toRet += [str(' :%'+str(maxDigits+3)+'.2f%s') % (data['bpi'][CURR]['rate_float'], CURR[:2])]
-
-allToSend = [
-	'MC 1',
-	'TL ' + ' '.join(['"%s"' % m for m in toRet]),
-	'TO 0 8 1 0 "By CoinDesk"'
-	]
-		
-saveGraph()
-
-allToSend += drawGraph(1)
-allToSend += printTime()
-allToSend += bitcoinBig(0,16)
-
-allToSend += ['MC 0']	
+for i in range(numScreens):
+	toRet = []
+	toRet += ['BPI','']
+	for CURR in CURRS:
+		toRet += [str(' :%'+str(maxDigits+3)+'.2f%s') % (data['bpi'][CURR]['rate_float'], CURR[:2])]
 	
-for toSend in allToSend:
-	sendCommand(toSend)
+	allToSend = [
+		'TL ' + ' '.join(['"%s"' % m for m in toRet]),
+		'TO 0 8 1 0 "By CoinDesk"'
+		]
+		
+	allToSend += drawGraph([1,6,24,24*7][i])
+	allToSend += printTime()
+	allToSend += bitcoinBig(0,16)
+
+	sendMany(allToSend,i)
 	
