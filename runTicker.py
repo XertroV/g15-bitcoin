@@ -5,8 +5,7 @@ import httplib
 import os, math, datetime, time, sys
 
 pipeLocation = '~/g15Output'
-graphFile = './pricegraph.json'
-graphWidth = 40
+graphFile = './pricegraphNew.json'
 graph = []
 
 if not os.path.exists(pipeLocation):
@@ -21,7 +20,7 @@ def loadGraph():
 		
 def updateGraph(newVal):
 	global graph
-	graph = [newVal] + graph
+	graph = [[int(time.time()), newVal]] + graph
 	
 def saveGraph():
 	global graph
@@ -34,32 +33,40 @@ def printTime():
 	return [t]
 		
 def getYForGraph(r):
-		return (boundY+height) - (graph[r]-minPrice)/rangePrice*height
+	return (boundY+height) - (graph[r]-minPrice)/rangePrice*height
 		
-def drawGraph():
+def drawGraph(timeMul):
+	# timeMul is how many items to average over each time.
+	# timeMul = 3 would mean each step 
 	global graph
 	# bounds are the right hand side, top
 	boundX = 136
 	boundY = 5
 	height = 33
-	minPrice = min(graph)
-	maxPrice = max(graph)
+	graphWidth = 40
+	allPrices = [a[1] for a in graph]
+	minPrice = min(allPrices)
+	maxPrice = max(allPrices)
 	minmax = (minPrice, maxPrice)
 	rangePrice = maxPrice - minPrice
 	genericMessage = 'DL %d %d %d %d %d'
 	messages = []
 	
 	def getYForGraph(r):
-		return (boundY+height) - (graph[r]-minPrice)/rangePrice*height
+		try:
+			return (boundY+height) - (graph[r][1]-minPrice)/rangePrice*height
+		except IndexError:
+			print r, graph
+			return None
 		
 	currX = boundX
-	for r in range(1,len(graph)):
+	for r in range(1,graphWidth):
 		x1 = currX
 		x2 = currX+1
 		y1 = getYForGraph(r)
 		y2 = getYForGraph(r-1)
-		
-		messages += [genericMessage % (x1,int(y1),x2,int(y2),1)]
+		if None not in [y1,y2]:
+			messages += [genericMessage % (x1,int(y1),x2,int(y2),1)]
 		currX -= 1
 	messages += ['TO %d %d 0 2 "%5.1f"' % (boundX-1, boundY-2, max(minmax))]
 	messages += ['TO %d %d 0 2 "%5.1f"' % (boundX-1, boundY-2+height, min(minmax))]
@@ -94,7 +101,7 @@ allToSend = [
 		
 saveGraph()
 
-allToSend += drawGraph()
+allToSend += drawGraph(1)
 allToSend += printTime()
 
 allToSend += ['MC 0']	
