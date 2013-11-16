@@ -5,12 +5,12 @@ import httplib
 import os, math, datetime, time, sys
 
 pipeLocation = '~/g15Output'
-graphFile = './pricegraphNew.json'
+graphFile = './pricegraph.json'
 graph = []
 
-if not os.path.exists(pipeLocation):
-	print 'Pipe location incorrect; fatal'
-	sys.exit()
+#if not os.path.exists(pipeLocation):
+#	print 'Pipe location incorrect; fatal'
+#	sys.exit()
 
 def loadGraph():
 	global graph
@@ -32,9 +32,6 @@ def printTime():
 	t = 'TO 4 35 1 0 "%s"' % timestring
 	return [t]
 		
-def getYForGraph(r):
-	return (boundY+height) - (graph[r]-minPrice)/rangePrice*height
-		
 def drawGraph(timeMul):
 	# timeMul is how many items to average over each time.
 	# timeMul = 3 would mean each step 
@@ -49,6 +46,7 @@ def drawGraph(timeMul):
 	maxPrice = max(allPrices)
 	minmax = (minPrice, maxPrice)
 	rangePrice = maxPrice - minPrice
+	print rangePrice
 	genericMessage = 'DL %d %d %d %d %d'
 	messages = []
 	
